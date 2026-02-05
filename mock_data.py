@@ -28,7 +28,7 @@ DOMAINS = ["Клиенты", "Транзакции", "Продукты", "Рис
 # Расписания
 SCHEDULES = ["daily", "hourly", "weekly", "monthly"]
 
-# Таблицы
+# Таблицы (полные имена для совместимости)
 TABLES = [
     "dwh.f_transactions",
     "dwh.d_customers", 
@@ -43,6 +43,31 @@ TABLES = [
     "mart.daily_summary",
     "mart.risk_scores",
 ]
+
+# Схемы
+SCHEMAS = ["dwh", "staging", "mart"]
+
+# Таблицы по схемам
+TABLES_BY_SCHEMA = {
+    "dwh": [
+        "f_transactions", 
+        "d_customers", 
+        "d_products", 
+        "f_balances", 
+        "d_accounts", 
+        "f_payments", 
+        "d_branches"
+    ],
+    "staging": [
+        "stg_customers", 
+        "stg_transactions"
+    ],
+    "mart": [
+        "customer_profile", 
+        "daily_summary", 
+        "risk_scores"
+    ],
+}
 
 
 def generate_checks(n=50):

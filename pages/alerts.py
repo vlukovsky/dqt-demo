@@ -96,7 +96,7 @@ def layout():
                         ]),
                     ], width=3),
                     dbc.Col([
-                        dbc.Select(
+                        dcc.Dropdown(
                             id="filter-alert-status",
                             options=[
                                 {"label": "Все статусы", "value": ""},
@@ -105,10 +105,14 @@ def layout():
                                 {"label": "Решённые", "value": "resolved"},
                             ],
                             value="",
+                            placeholder="Статус...",
+                            searchable=True,
+                            clearable=False,
+                            style={"fontSize": "0.9em"},
                         ),
                     ], width=2),
                     dbc.Col([
-                        dbc.Select(
+                        dcc.Dropdown(
                             id="filter-alert-severity",
                             options=[
                                 {"label": "Все уровни", "value": ""},
@@ -116,19 +120,27 @@ def layout():
                                 {"label": "Предупреждение", "value": "warning"},
                             ],
                             value="",
+                            placeholder="Уровень...",
+                            searchable=True,
+                            clearable=False,
+                            style={"fontSize": "0.9em"},
                         ),
                     ], width=2),
                     dbc.Col([
-                        dbc.Select(
+                        dcc.Dropdown(
                             id="filter-alert-domain",
                             options=[{"label": "Все домены", "value": ""}] + [
                                 {"label": d, "value": d} for d in DOMAINS
                             ],
                             value="",
+                            placeholder="Домен...",
+                            searchable=True,
+                            clearable=False,
+                            style={"fontSize": "0.9em"},
                         ),
                     ], width=2),
                     dbc.Col([
-                        dbc.Select(
+                        dcc.Dropdown(
                             id="filter-alert-channel",
                             options=[
                                 {"label": "Все каналы", "value": ""},
@@ -136,6 +148,10 @@ def layout():
                                 {"label": "Email", "value": "email"},
                             ],
                             value="",
+                            placeholder="Канал...",
+                            searchable=True,
+                            clearable=False,
+                            style={"fontSize": "0.9em"},
                         ),
                     ], width=2),
                     dbc.Col([
@@ -172,7 +188,7 @@ def layout():
                     dbc.Row([
                         dbc.Col([
                             dbc.Label("Условие срабатывания"),
-                            dbc.Select(
+                            dcc.Dropdown(
                                 id="new-rule-condition",
                                 options=[
                                     {"label": "При статусе FAIL", "value": "FAIL"},
@@ -180,17 +196,25 @@ def layout():
                                     {"label": "При FAIL или ERROR", "value": "FAIL_OR_ERROR"},
                                     {"label": "При превышении threshold", "value": "THRESHOLD"},
                                 ],
+                                placeholder="Выберите условие...",
+                                searchable=True,
+                                clearable=True,
+                                style={"fontSize": "0.9em"},
                             ),
                         ], width=6),
                         dbc.Col([
                             dbc.Label("Канал оповещения"),
-                            dbc.Select(
+                            dcc.Dropdown(
                                 id="new-rule-channel",
                                 options=[
                                     {"label": "Telegram", "value": "telegram"},
                                     {"label": "Email", "value": "email"},
                                     {"label": "Оба канала", "value": "both"},
                                 ],
+                                placeholder="Выберите канал...",
+                                searchable=True,
+                                clearable=True,
+                                style={"fontSize": "0.9em"},
                             ),
                         ], width=6),
                     ], className="mb-3"),
@@ -198,20 +222,28 @@ def layout():
                     dbc.Row([
                         dbc.Col([
                             dbc.Label("Применить к"),
-                            dbc.Select(
+                            dcc.Dropdown(
                                 id="new-rule-scope",
                                 options=[
                                     {"label": "Все проверки", "value": "all"},
                                     {"label": "Домен", "value": "domain"},
                                     {"label": "Конкретная проверка", "value": "check"},
                                 ],
+                                placeholder="Выберите область...",
+                                searchable=True,
+                                clearable=True,
+                                style={"fontSize": "0.9em"},
                             ),
                         ], width=6),
                         dbc.Col([
                             dbc.Label("Домен / Проверка"),
-                            dbc.Select(
+                            dcc.Dropdown(
                                 id="new-rule-target",
                                 options=[{"label": d, "value": d} for d in DOMAINS],
+                                placeholder="Выберите цель...",
+                                searchable=True,
+                                clearable=True,
+                                style={"fontSize": "0.9em"},
                             ),
                         ], width=6),
                     ], className="mb-3"),

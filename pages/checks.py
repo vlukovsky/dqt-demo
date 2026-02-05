@@ -5,7 +5,7 @@ import dash
 from dash import html, dcc, callback, Input, Output, State, ctx
 import dash_bootstrap_components as dbc
 import dash_ag_grid as dag
-from mock_data import MOCK_CHECKS, MOCK_CHECK_TYPES, DOMAINS, OWNERS, TABLES
+from mock_data import MOCK_CHECKS, MOCK_CHECK_TYPES, DOMAINS, OWNERS, TABLES, SCHEMAS, TABLES_BY_SCHEMA
 
 dash.register_page(__name__, path="/checks", name="Проверки")
 
@@ -41,7 +41,7 @@ def layout():
                         ]),
                     ], width=3),
                     dbc.Col([
-                        dbc.Select(
+                        dcc.Dropdown(
                             id="filter-status",
                             options=[
                                 {"label": "Все статусы", "value": ""},
@@ -50,34 +50,50 @@ def layout():
                                 {"label": "ERROR", "value": "ERROR"},
                             ],
                             value="",
+                            placeholder="Статус...",
+                            searchable=True,
+                            clearable=False,
+                            style={"fontSize": "0.9em"},
                         ),
                     ], width=2),
                     dbc.Col([
-                        dbc.Select(
+                        dcc.Dropdown(
                             id="filter-type",
                             options=[{"label": "Все типы", "value": ""}] + [
                                 {"label": ct["check_type_name"], "value": ct["check_type_name"]}
                                 for ct in MOCK_CHECK_TYPES.to_dict("records")
                             ],
                             value="",
+                            placeholder="Тип...",
+                            searchable=True,
+                            clearable=False,
+                            style={"fontSize": "0.9em"},
                         ),
                     ], width=2),
                     dbc.Col([
-                        dbc.Select(
+                        dcc.Dropdown(
                             id="filter-domain",
                             options=[{"label": "Все домены", "value": ""}] + [
                                 {"label": d, "value": d} for d in DOMAINS
                             ],
                             value="",
+                            placeholder="Домен...",
+                            searchable=True,
+                            clearable=False,
+                            style={"fontSize": "0.9em"},
                         ),
                     ], width=2),
                     dbc.Col([
-                        dbc.Select(
+                        dcc.Dropdown(
                             id="filter-owner",
                             options=[{"label": "Все владельцы", "value": ""}] + [
                                 {"label": o, "value": o} for o in OWNERS
                             ],
                             value="",
+                            placeholder="Владелец...",
+                            searchable=True,
+                            clearable=False,
+                            style={"fontSize": "0.9em"},
                         ),
                     ], width=2),
                     dbc.Col([
@@ -220,33 +236,53 @@ def layout():
                         ], width=6),
                         dbc.Col([
                             dbc.Label("Тип проверки"),
-                            dbc.Select(
+                            dcc.Dropdown(
                                 id="new-check-type",
                                 options=[
                                     {"label": ct["check_type_name"], "value": ct["check_type_id"]}
                                     for ct in MOCK_CHECK_TYPES.to_dict("records")
                                 ],
+                                placeholder="Выберите тип...",
+                                searchable=True,
+                                clearable=True,
+                                style={"fontSize": "0.9em"},
                             ),
                         ], width=6),
                     ], className="mb-3"),
                     
                     dbc.Row([
                         dbc.Col([
-                            dbc.Label("Схема.Таблица"),
+                            dbc.Label("Схема"),
                             dcc.Dropdown(
-                                id="new-check-table",
-                                options=[{"label": t, "value": t} for t in TABLES],
-                                placeholder="Начните вводить название таблицы...",
+                                id="new-check-schema",
+                                options=[{"label": s, "value": s} for s in SCHEMAS],
+                                placeholder="Выберите схему...",
                                 searchable=True,
                                 clearable=True,
                                 style={"fontSize": "0.9em"},
                             ),
-                        ], width=6),
+                        ], width=3),
+                        dbc.Col([
+                            dbc.Label("Таблица"),
+                            dcc.Dropdown(
+                                id="new-check-table",
+                                options=[],
+                                placeholder="Сначала выберите схему...",
+                                searchable=True,
+                                clearable=True,
+                                disabled=True,
+                                style={"fontSize": "0.9em"},
+                            ),
+                        ], width=3),
                         dbc.Col([
                             dbc.Label("Домен"),
-                            dbc.Select(
+                            dcc.Dropdown(
                                 id="new-check-domain",
                                 options=[{"label": d, "value": d} for d in DOMAINS],
+                                placeholder="Выберите домен...",
+                                searchable=True,
+                                clearable=True,
+                                style={"fontSize": "0.9em"},
                             ),
                         ], width=6),
                     ], className="mb-3"),
@@ -254,7 +290,7 @@ def layout():
                     dbc.Row([
                         dbc.Col([
                             dbc.Label("Расписание"),
-                            dbc.Select(
+                            dcc.Dropdown(
                                 id="new-check-schedule",
                                 options=[
                                     {"label": "Ежедневно", "value": "daily"},
@@ -262,24 +298,36 @@ def layout():
                                     {"label": "Еженедельно", "value": "weekly"},
                                     {"label": "Ежемесячно", "value": "monthly"},
                                 ],
+                                placeholder="Выберите расписание...",
+                                searchable=True,
+                                clearable=True,
+                                style={"fontSize": "0.9em"},
                             ),
                         ], width=4),
                         dbc.Col([
                             dbc.Label("Приоритет"),
-                            dbc.Select(
+                            dcc.Dropdown(
                                 id="new-check-priority",
                                 options=[
                                     {"label": "Высокий", "value": "HIGH"},
                                     {"label": "Средний", "value": "MEDIUM"},
                                     {"label": "Низкий", "value": "LOW"},
                                 ],
+                                placeholder="Выберите приоритет...",
+                                searchable=True,
+                                clearable=True,
+                                style={"fontSize": "0.9em"},
                             ),
                         ], width=4),
                         dbc.Col([
                             dbc.Label("Владелец"),
-                            dbc.Select(
+                            dcc.Dropdown(
                                 id="new-check-owner",
                                 options=[{"label": o, "value": o} for o in OWNERS],
+                                placeholder="Выберите владельца...",
+                                searchable=True,
+                                clearable=True,
+                                style={"fontSize": "0.9em"},
                             ),
                         ], width=4),
                     ], className="mb-3"),
@@ -352,6 +400,21 @@ def layout():
         ),
         
     ], fluid=True, className="py-3")
+
+
+@callback(
+    [Output("new-check-table", "options"),
+     Output("new-check-table", "disabled"),
+     Output("new-check-table", "value")],
+    Input("new-check-schema", "value")
+)
+def update_tables_dropdown(schema):
+    """Обновляет список таблиц при выборе схемы."""
+    if not schema:
+        return [], True, None
+    tables = TABLES_BY_SCHEMA.get(schema, [])
+    options = [{"label": t, "value": t} for t in tables]
+    return options, False, None
 
 
 @callback(
@@ -561,18 +624,20 @@ WHERE amount < 0
     Output("new-check-sql", "value"),
     Input("btn-generate-sql", "n_clicks"),
     [State("new-check-type", "value"),
+     State("new-check-schema", "value"),
      State("new-check-table", "value")],
     prevent_initial_call=True
 )
-def generate_sql(n_clicks, check_type, table):
+def generate_sql(n_clicks, check_type, schema, table):
     if not n_clicks:
         return dash.no_update
     
-    if not check_type or not table:
-        return "-- Выберите тип проверки и таблицу для генерации SQL"
+    if not check_type or not schema or not table:
+        return "-- Выберите тип проверки, схему и таблицу для генерации SQL"
     
+    full_table_name = f"{schema}.{table}"
     template = SQL_TEMPLATES.get(int(check_type), "-- Шаблон не найден")
-    return template.format(table=table)
+    return template.format(table=full_table_name)
 
 
 @callback(

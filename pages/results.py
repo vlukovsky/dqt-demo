@@ -40,7 +40,7 @@ def layout():
                 dbc.Row([
                     dbc.Col([
                         dbc.Label("Период", className="small"),
-                        dbc.Select(
+                        dcc.Dropdown(
                             id="filter-period",
                             options=[
                                 {"label": "Сегодня", "value": "1"},
@@ -49,11 +49,15 @@ def layout():
                                 {"label": "Последние 90 дней", "value": "90"},
                             ],
                             value="7",
+                            placeholder="Период...",
+                            searchable=True,
+                            clearable=False,
+                            style={"fontSize": "0.9em"},
                         ),
                     ], width=2),
                     dbc.Col([
                         dbc.Label("Статус", className="small"),
-                        dbc.Select(
+                        dcc.Dropdown(
                             id="filter-result-status",
                             options=[
                                 {"label": "Все", "value": ""},
@@ -62,16 +66,24 @@ def layout():
                                 {"label": "ERROR", "value": "ERROR"},
                             ],
                             value="",
+                            placeholder="Статус...",
+                            searchable=True,
+                            clearable=False,
+                            style={"fontSize": "0.9em"},
                         ),
                     ], width=2),
                     dbc.Col([
                         dbc.Label("Домен", className="small"),
-                        dbc.Select(
+                        dcc.Dropdown(
                             id="filter-result-domain",
                             options=[{"label": "Все", "value": ""}] + [
                                 {"label": d, "value": d} for d in DOMAINS
                             ],
                             value="",
+                            placeholder="Домен...",
+                            searchable=True,
+                            clearable=False,
+                            style={"fontSize": "0.9em"},
                         ),
                     ], width=2),
                     dbc.Col([
