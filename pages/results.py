@@ -2,12 +2,13 @@
 Страница истории результатов
 """
 import dash
-from dash import html, dcc, callback, Input, Output
+from dash import html, dcc, callback, Input, Output, State
 import dash_bootstrap_components as dbc
 import dash_ag_grid as dag
 import plotly.express as px
 from datetime import datetime, timedelta
 from mock_data import MOCK_RESULTS, DOMAINS
+import io
 
 dash.register_page(__name__, path="/results", name="История")
 
@@ -22,9 +23,14 @@ def layout():
             ], width=8),
             dbc.Col([
                 dbc.Button([
-                    html.I(className="fas fa-file-export me-2"),
-                    "Экспорт в Excel"
-                ], color="outline-primary"),
+                    html.I(className="fas fa-file-csv me-2"),
+                    "Экспорт CSV"
+                ], id="btn-export-csv", color="outline-primary", className="me-2"),
+                dbc.Button([
+                    html.I(className="fas fa-file-excel me-2"),
+                    "Экспорт Excel"
+                ], id="btn-export-excel", color="outline-success"),
+                dcc.Download(id="download-results"),
             ], width=4, className="text-end"),
         ], className="mb-4 align-items-center"),
         
@@ -224,3 +230,71 @@ def update_results(period, status, domain, search, n_clicks):
     )
     
     return df.to_dict("records"), summary, fig
+
+
+@callback(
+    Output("download-results", "data"),
+    [Input("btn-export-csv", "n_clicks"),
+     Input("btn-export-excel", "n_clicks")],
+    [State("filter-period", "value"),
+     State("filter-result-status", "value"),
+     State("filter-result-domain", "value"),
+     State("search-results", "value")],
+    prevent_initial_call=True
+)
+def export_results(n_csv, n_excel, period, status, domain, search):
+    from dash import ctx
+    
+    # Получаем отфильтрованные данные
+    df = MOCK_RESULTS.copy()
+    
+    # Применяем те же фильтры
+    days = int(period) if period else 7
+    cutoff_date = (datetime.now() - timedelta(days=days)).date()
+    df = df[df["run_date"] >= cutoff_date]
+    
+    if status:
+        df = df[df["check_status_name"] == status]
+    
+    if domain:
+        df = df[df["domain"] == domain]
+    
+    if search:
+        search = search.lower()
+        df = df[
+            df["check_name"].str.lower().str.contains(search, na=False) |
+            df["table_name"].str.lower().str.contains(search, na=False)
+        ]
+    
+    df = df.sort_values("run_datetime", ascending=False)
+    
+    # Выбираем колонки для экспорта
+    export_cols = [
+        "run_datetime", "check_name", "table_name", "check_type_name",
+        "domain", "check_status_name", "execution_time_sec", 
+        "rows_checked", "rows_failed", "owner"
+    ]
+    export_df = df[export_cols].copy()
+    export_df.columns = [
+        "Время", "Проверка", "Таблица", "Тип",
+        "Домен", "Статус", "Время выполнения (сек)",
+        "Строк проверено", "Строк с ошибками", "Владелец"
+    ]
+    
+    triggered = ctx.triggered_id
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    if triggered == "btn-export-csv":
+        return dcc.send_data_frame(
+            export_df.to_csv, 
+            f"dqt_results_{timestamp}.csv",
+            index=False
+        )
+    elif triggered == "btn-export-excel":
+        return dcc.send_data_frame(
+            export_df.to_excel,
+            f"dqt_results_{timestamp}.xlsx",
+            index=False
+        )
+    
+    return None

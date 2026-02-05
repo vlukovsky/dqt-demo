@@ -229,3 +229,69 @@ def get_check_results(check_id: int, limit: int = 20):
         "run_datetime", ascending=False
     ).head(limit)
     return results
+
+
+# Каналы оповещений
+ALERT_CHANNELS = ["telegram", "email"]
+
+# Статусы алертов
+ALERT_STATUSES = ["active", "acknowledged", "resolved"]
+
+
+def generate_alerts(results_df, n=30):
+    """Генерация списка алертов на основе FAIL/ERROR результатов"""
+    alerts = []
+    
+    # Берём только FAIL и ERROR результаты
+    failed_results = results_df[
+        results_df["check_status_name"].isin(["FAIL", "ERROR"])
+    ].sort_values("run_datetime", ascending=False).head(n)
+    
+    alert_id = 1
+    for _, result in failed_results.iterrows():
+        severity = "critical" if result["check_status_name"] == "FAIL" else "warning"
+        status = random.choices(
+            ALERT_STATUSES,
+            weights=[0.5, 0.3, 0.2]
+        )[0]
+        
+        channel = random.choice(ALERT_CHANNELS)
+        acknowledged_by = random.choice(OWNERS) if status != "active" else None
+        resolved_at = result["run_datetime"] + timedelta(hours=random.randint(1, 24)) if status == "resolved" else None
+        
+        alerts.append({
+            "alert_id": alert_id,
+            "check_id": result["check_id"],
+            "check_name": result["check_name"],
+            "table_name": result["table_name"],
+            "domain": result["domain"],
+            "check_status": result["check_status_name"],
+            "severity": severity,
+            "status": status,
+            "channel": channel,
+            "message": f"Проверка {result['check_name']} завершилась со статусом {result['check_status_name']}",
+            "created_at": result["run_datetime"],
+            "acknowledged_by": acknowledged_by,
+            "acknowledged_at": result["run_datetime"] + timedelta(minutes=random.randint(5, 120)) if acknowledged_by else None,
+            "resolved_at": resolved_at,
+            "owner": result["owner"],
+        })
+        alert_id += 1
+    
+    return pd.DataFrame(alerts)
+
+
+# Инициализация мок-алертов
+MOCK_ALERTS = generate_alerts(MOCK_RESULTS, n=30)
+
+
+def get_active_alerts():
+    """Получить активные алерты"""
+    return MOCK_ALERTS[MOCK_ALERTS["status"] == "active"].sort_values(
+        "created_at", ascending=False
+    )
+
+
+def get_alerts_count_by_status():
+    """Статистика алертов по статусам"""
+    return MOCK_ALERTS.groupby("status").size().to_dict()

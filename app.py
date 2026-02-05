@@ -75,9 +75,18 @@ app.clientside_callback(
             };
             
             window.dashAgGridComponentFunctions.ActiveRenderer = function(params) {
-                return params.value 
-                    ? '<span class="text-success">✓ Да</span>'
-                    : '<span class="text-muted">✗ Нет</span>';
+                const isActive = params.value;
+                const btnClass = isActive ? 'btn-success' : 'btn-outline-secondary';
+                const icon = isActive ? 'fa-toggle-on' : 'fa-toggle-off';
+                const title = isActive ? 'Выключить' : 'Включить';
+                return `
+                    <button class="btn btn-sm ${btnClass} toggle-active-btn" 
+                            data-check-id="${params.data.check_id}"
+                            title="${title}"
+                            style="min-width: 70px;">
+                        <i class="fas ${icon} me-1"></i>${isActive ? 'Вкл' : 'Выкл'}
+                    </button>
+                `;
             };
             
             window.dashAgGridComponentFunctions.PriorityRenderer = function(params) {
@@ -114,11 +123,13 @@ app.clientside_callback(
                         <a href="/check/${params.data.check_id}" class="btn btn-sm btn-outline-primary" title="Просмотр">
                             <i class="fas fa-eye"></i>
                         </a>
-                        <button class="btn btn-sm btn-outline-success" title="Запустить">
+                        <button class="btn btn-sm btn-outline-success run-check-btn" 
+                                data-check-id="${params.data.check_id}" title="Запустить">
                             <i class="fas fa-play"></i>
                         </button>
-                        <button class="btn btn-sm btn-outline-secondary" title="Редактировать">
-                            <i class="fas fa-edit"></i>
+                        <button class="btn btn-sm btn-outline-danger delete-check-btn" 
+                                data-check-id="${params.data.check_id}" title="Удалить">
+                            <i class="fas fa-trash"></i>
                         </button>
                     </div>
                 `;
