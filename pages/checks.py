@@ -103,6 +103,35 @@ def layout():
                         ], id="btn-reset-filters", color="outline-secondary", size="sm"),
                     ], width=1, className="text-end"),
                 ], className="g-2"),
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Label("Схема", className="small"),
+                        dcc.Dropdown(
+                            id="filter-check-schema",
+                            options=[{"label": "Все схемы", "value": ""}] + [
+                                {"label": s, "value": s} for s in SCHEMAS
+                            ],
+                            value="",
+                            placeholder="Схема...",
+                            searchable=True,
+                            clearable=False,
+                            style={"fontSize": "0.9em"},
+                        ),
+                    ], width=2),
+                    dbc.Col([
+                        dbc.Label("Таблица", className="small"),
+                        dcc.Dropdown(
+                            id="filter-check-table",
+                            options=[],
+                            value="",
+                            placeholder="Сначала выберите схему...",
+                            searchable=True,
+                            clearable=False,
+                            disabled=True,
+                            style={"fontSize": "0.9em"},
+                        ),
+                    ], width=2),
+                ], className="g-2 mt-2"),
             ]),
         ], className="mb-3 shadow-sm"),
         
@@ -409,12 +438,27 @@ def layout():
     Input("new-check-schema", "value")
 )
 def update_tables_dropdown(schema):
-    """Обновляет список таблиц при выборе схемы."""
+    """Обновляет список таблиц при выборе схемы (форма создания)."""
     if not schema:
         return [], True, None
     tables = TABLES_BY_SCHEMA.get(schema, [])
     options = [{"label": t, "value": t} for t in tables]
     return options, False, None
+
+
+@callback(
+    [Output("filter-check-table", "options"),
+     Output("filter-check-table", "disabled"),
+     Output("filter-check-table", "value")],
+    Input("filter-check-schema", "value")
+)
+def update_filter_tables_dropdown(schema):
+    """Обновляет список таблиц при выборе схемы (фильтры)."""
+    if not schema:
+        return [{"label": "Все", "value": ""}], True, ""
+    tables = TABLES_BY_SCHEMA.get(schema, [])
+    options = [{"label": "Все", "value": ""}] + [{"label": t, "value": t} for t in tables]
+    return options, False, ""
 
 
 @callback(
@@ -424,9 +468,11 @@ def update_tables_dropdown(schema):
      Input("filter-status", "value"),
      Input("filter-type", "value"),
      Input("filter-domain", "value"),
-     Input("filter-owner", "value")]
+     Input("filter-owner", "value"),
+     Input("filter-check-schema", "value"),
+     Input("filter-check-table", "value")]
 )
-def update_checks_table(search, status, check_type, domain, owner):
+def update_checks_table(search, status, check_type, domain, owner, schema, table):
     df = MOCK_CHECKS.copy()
     
     # Применяем фильтры
@@ -449,6 +495,13 @@ def update_checks_table(search, status, check_type, domain, owner):
     if owner:
         df = df[df["owner"] == owner]
     
+    # Фильтр по схеме и таблице
+    if schema and table:
+        full_table = f"{schema}.{table}"
+        df = df[df["table_name"] == full_table]
+    elif schema:
+        df = df[df["table_name"].str.startswith(f"{schema}.")]
+    
     count_text = f"Найдено проверок: {len(df)}"
     
     return df.to_dict("records"), count_text
@@ -459,12 +512,14 @@ def update_checks_table(search, status, check_type, domain, owner):
      Output("filter-status", "value", allow_duplicate=True),
      Output("filter-type", "value", allow_duplicate=True),
      Output("filter-domain", "value", allow_duplicate=True),
-     Output("filter-owner", "value", allow_duplicate=True)],
+     Output("filter-owner", "value", allow_duplicate=True),
+     Output("filter-check-schema", "value", allow_duplicate=True),
+     Output("filter-check-table", "value", allow_duplicate=True)],
     Input("btn-reset-filters", "n_clicks"),
     prevent_initial_call=True
 )
 def reset_filters(n_clicks):
-    return "", "", "", "", ""
+    return "", "", "", "", "", "", ""
 
 
 @callback(

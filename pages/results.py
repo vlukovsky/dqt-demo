@@ -7,7 +7,7 @@ import dash_bootstrap_components as dbc
 import dash_ag_grid as dag
 import plotly.express as px
 from datetime import datetime, timedelta
-from mock_data import MOCK_RESULTS, DOMAINS
+from mock_data import MOCK_RESULTS, DOMAINS, SCHEMAS, TABLES_BY_SCHEMA
 import io
 
 dash.register_page(__name__, path="/results", name="История")
@@ -87,19 +87,41 @@ def layout():
                         ),
                     ], width=2),
                     dbc.Col([
+                        dbc.Label("Схема", className="small"),
+                        dcc.Dropdown(
+                            id="filter-result-schema",
+                            options=[{"label": "Все", "value": ""}] + [
+                                {"label": s, "value": s} for s in SCHEMAS
+                            ],
+                            value="",
+                            placeholder="Схема...",
+                            searchable=True,
+                            clearable=False,
+                            style={"fontSize": "0.9em"},
+                        ),
+                    ], width=2),
+                    dbc.Col([
+                        dbc.Label("Таблица", className="small"),
+                        dcc.Dropdown(
+                            id="filter-result-table",
+                            options=[],
+                            value="",
+                            placeholder="Сначала схема...",
+                            searchable=True,
+                            clearable=False,
+                            disabled=True,
+                            style={"fontSize": "0.9em"},
+                        ),
+                    ], width=2),
+                    dbc.Col([
                         dbc.Label("Поиск", className="small"),
                         dbc.Input(
                             id="search-results",
-                            placeholder="Название проверки или таблицы...",
+                            placeholder="Проверка...",
                             debounce=True,
+                            size="sm",
                         ),
-                    ], width=4),
-                    dbc.Col([
-                        dbc.Label(" ", className="small d-block"),
-                        dbc.Button([
-                            html.I(className="fas fa-sync-alt"),
-                        ], id="btn-refresh-results", color="outline-secondary"),
-                    ], width=2, className="text-end"),
+                    ], width=2),
                 ], className="g-2"),
             ]),
         ], className="mb-3 shadow-sm"),
@@ -156,16 +178,32 @@ def layout():
 
 
 @callback(
+    [Output("filter-result-table", "options"),
+     Output("filter-result-table", "disabled"),
+     Output("filter-result-table", "value")],
+    Input("filter-result-schema", "value")
+)
+def update_result_tables_dropdown(schema):
+    """Обновляет список таблиц при выборе схемы."""
+    if not schema:
+        return [{"label": "Все", "value": ""}], True, ""
+    tables = TABLES_BY_SCHEMA.get(schema, [])
+    options = [{"label": "Все", "value": ""}] + [{"label": t, "value": t} for t in tables]
+    return options, False, ""
+
+
+@callback(
     [Output("results-grid", "rowData"),
      Output("results-summary", "children"),
      Output("results-timeline", "figure")],
     [Input("filter-period", "value"),
      Input("filter-result-status", "value"),
      Input("filter-result-domain", "value"),
-     Input("search-results", "value"),
-     Input("btn-refresh-results", "n_clicks")]
+     Input("filter-result-schema", "value"),
+     Input("filter-result-table", "value"),
+     Input("search-results", "value")]
 )
-def update_results(period, status, domain, search, n_clicks):
+def update_results(period, status, domain, schema, table, search):
     df = MOCK_RESULTS.copy()
     
     # Фильтр по периоду
@@ -180,6 +218,13 @@ def update_results(period, status, domain, search, n_clicks):
     # Фильтр по домену
     if domain:
         df = df[df["domain"] == domain]
+    
+    # Фильтр по схеме и таблице
+    if schema and table:
+        full_table = f"{schema}.{table}"
+        df = df[df["table_name"] == full_table]
+    elif schema:
+        df = df[df["table_name"].str.startswith(f"{schema}.")]
     
     # Поиск
     if search:
@@ -251,10 +296,12 @@ def update_results(period, status, domain, search, n_clicks):
     [State("filter-period", "value"),
      State("filter-result-status", "value"),
      State("filter-result-domain", "value"),
+     State("filter-result-schema", "value"),
+     State("filter-result-table", "value"),
      State("search-results", "value")],
     prevent_initial_call=True
 )
-def export_results(n_csv, n_excel, period, status, domain, search):
+def export_results(n_csv, n_excel, period, status, domain, schema, table, search):
     from dash import ctx
     
     # Получаем отфильтрованные данные
@@ -270,6 +317,13 @@ def export_results(n_csv, n_excel, period, status, domain, search):
     
     if domain:
         df = df[df["domain"] == domain]
+    
+    # Фильтр по схеме и таблице
+    if schema and table:
+        full_table = f"{schema}.{table}"
+        df = df[df["table_name"] == full_table]
+    elif schema:
+        df = df[df["table_name"].str.startswith(f"{schema}.")]
     
     if search:
         search = search.lower()

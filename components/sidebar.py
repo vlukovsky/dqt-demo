@@ -29,11 +29,6 @@ def create_sidebar():
                 "Алерты"
             ], href="/alerts", active="exact", className="sidebar-link"),
             
-            dbc.NavLink([
-                html.I(className="fas fa-table me-2"),
-                "Таблицы"
-            ], href="/tables", active="exact", className="sidebar-link"),
-            
             html.Hr(className="my-3"),
             
             dbc.NavLink([

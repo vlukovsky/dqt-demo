@@ -6,7 +6,7 @@ from dash import html, dcc, callback, Input, Output, State, ctx
 import dash_bootstrap_components as dbc
 import dash_ag_grid as dag
 from datetime import datetime, timedelta
-from mock_data import MOCK_ALERTS, DOMAINS, OWNERS, get_alerts_count_by_status
+from mock_data import MOCK_ALERTS, MOCK_CHECKS, DOMAINS, OWNERS, SCHEMAS, TABLES_BY_SCHEMA, get_alerts_count_by_status
 
 dash.register_page(__name__, path="/alerts", name="Алерты")
 
@@ -141,25 +141,38 @@ def layout():
                     ], width=2),
                     dbc.Col([
                         dcc.Dropdown(
-                            id="filter-alert-channel",
-                            options=[
-                                {"label": "Все каналы", "value": ""},
-                                {"label": "Telegram", "value": "telegram"},
-                                {"label": "Email", "value": "email"},
+                            id="filter-alert-schema",
+                            options=[{"label": "Все схемы", "value": ""}] + [
+                                {"label": s, "value": s} for s in SCHEMAS
                             ],
                             value="",
-                            placeholder="Канал...",
+                            placeholder="Схема...",
                             searchable=True,
                             clearable=False,
                             style={"fontSize": "0.9em"},
                         ),
                     ], width=2),
                     dbc.Col([
+                        dcc.Dropdown(
+                            id="filter-alert-table",
+                            options=[],
+                            value="",
+                            placeholder="Таблица...",
+                            searchable=True,
+                            clearable=False,
+                            disabled=True,
+                            style={"fontSize": "0.9em"},
+                        ),
+                    ], width=2),
+                ], className="g-2 mb-2"),
+                dbc.Row([
+                    dbc.Col([
                         dbc.Button([
-                            html.I(className="fas fa-filter-circle-xmark"),
+                            html.I(className="fas fa-filter-circle-xmark me-1"),
+                            "Сбросить"
                         ], id="btn-reset-alert-filters", color="outline-secondary", size="sm"),
-                    ], width=1, className="text-end"),
-                ], className="g-2"),
+                    ], className="text-end"),
+                ]),
             ]),
         ], className="mb-3 shadow-sm"),
         
@@ -239,10 +252,11 @@ def layout():
                             dbc.Label("Домен / Проверка"),
                             dcc.Dropdown(
                                 id="new-rule-target",
-                                options=[{"label": d, "value": d} for d in DOMAINS],
-                                placeholder="Выберите цель...",
+                                options=[],
+                                placeholder="Сначала выберите «Применить к»...",
                                 searchable=True,
                                 clearable=True,
+                                disabled=True,
                                 style={"fontSize": "0.9em"},
                             ),
                         ], width=6),
@@ -367,15 +381,54 @@ def create_alert_item(alert):
 
 
 @callback(
+    [Output("filter-alert-table", "options"),
+     Output("filter-alert-table", "disabled"),
+     Output("filter-alert-table", "value")],
+    Input("filter-alert-schema", "value")
+)
+def update_alert_tables_dropdown(schema):
+    """Обновляет список таблиц при выборе схемы."""
+    if not schema:
+        return [{"label": "Все", "value": ""}], True, ""
+    tables = TABLES_BY_SCHEMA.get(schema, [])
+    options = [{"label": "Все", "value": ""}] + [{"label": t, "value": t} for t in tables]
+    return options, False, ""
+
+
+@callback(
+    [Output("new-rule-target", "options"),
+     Output("new-rule-target", "value"),
+     Output("new-rule-target", "disabled")],
+    Input("new-rule-scope", "value")
+)
+def update_rule_target_by_scope(scope):
+    """Обновляет поле «Домен / Проверка» в зависимости от «Применить к»."""
+    if not scope or scope == "all":
+        return [], None, True
+    if scope == "domain":
+        options = [{"label": d, "value": d} for d in DOMAINS]
+        return options, None, False
+    if scope == "check":
+        checks = MOCK_CHECKS.to_dict("records")
+        options = [
+            {"label": f"{r['check_name']} ({r['table_name']})", "value": r["check_id"]}
+            for r in checks
+        ]
+        return options, None, False
+    return [], None, True
+
+
+@callback(
     [Output("alerts-feed", "children"),
      Output("alerts-count", "children")],
     [Input("search-alerts", "value"),
      Input("filter-alert-status", "value"),
      Input("filter-alert-severity", "value"),
      Input("filter-alert-domain", "value"),
-     Input("filter-alert-channel", "value")]
+     Input("filter-alert-schema", "value"),
+     Input("filter-alert-table", "value")]
 )
-def update_alerts_feed(search, status, severity, domain, channel):
+def update_alerts_feed(search, status, severity, domain, schema, table):
     df = MOCK_ALERTS.copy()
     
     # Применяем фильтры
@@ -395,8 +448,12 @@ def update_alerts_feed(search, status, severity, domain, channel):
     if domain:
         df = df[df["domain"] == domain]
     
-    if channel:
-        df = df[df["channel"] == channel]
+    # Фильтр по схеме и таблице
+    if schema and table:
+        full_table = f"{schema}.{table}"
+        df = df[df["table_name"] == full_table]
+    elif schema:
+        df = df[df["table_name"].str.startswith(f"{schema}.")]
     
     df = df.sort_values("created_at", ascending=False)
     
@@ -416,12 +473,13 @@ def update_alerts_feed(search, status, severity, domain, channel):
      Output("filter-alert-status", "value", allow_duplicate=True),
      Output("filter-alert-severity", "value", allow_duplicate=True),
      Output("filter-alert-domain", "value", allow_duplicate=True),
-     Output("filter-alert-channel", "value", allow_duplicate=True)],
+     Output("filter-alert-schema", "value", allow_duplicate=True),
+     Output("filter-alert-table", "value", allow_duplicate=True)],
     Input("btn-reset-alert-filters", "n_clicks"),
     prevent_initial_call=True
 )
 def reset_alert_filters(n_clicks):
-    return "", "", "", "", ""
+    return "", "", "", "", "", ""
 
 
 @callback(
@@ -442,13 +500,23 @@ def toggle_rule_modal(n_create, n_cancel, n_save, is_open):
      Output("toast-alert-action", "header"),
      Output("toast-alert-action", "icon")],
     Input("btn-save-rule", "n_clicks"),
-    State("new-rule-name", "value"),
+    [State("new-rule-name", "value"),
+     State("new-rule-condition", "value"),
+     State("new-rule-scope", "value"),
+     State("new-rule-target", "value")],
     prevent_initial_call=True
 )
-def save_rule(n_clicks, name):
+def save_rule(n_clicks, name, condition, scope, target):
     if n_clicks:
-        if name:
-            return True, f"Правило '{name}' успешно создано!", "Успех", "success"
-        else:
+        if not name:
             return True, "Введите название правила", "Ошибка", "danger"
+        condition_text = condition or "—"
+        if scope == "all" or not scope:
+            scope_text = "все проверки"
+        elif scope == "domain":
+            scope_text = f"домен «{target}»" if target else "домен (не выбран)"
+        else:
+            scope_text = f"проверка #{target}" if target else "проверка (не выбрана)"
+        msg = f"Правило «{name}» создано: при {condition_text} для {scope_text}."
+        return True, msg, "Успех", "success"
     return False, "", "", ""
