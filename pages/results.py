@@ -117,8 +117,9 @@ def layout():
                         dbc.Label("Поиск", className="small"),
                         dbc.Input(
                             id="search-results",
-                            placeholder="Проверка...",
+                            placeholder="Поиск проверки...",
                             debounce=True,
+                            type="search",
                             size="sm",
                         ),
                     ], width=2),

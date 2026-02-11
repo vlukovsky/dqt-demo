@@ -309,6 +309,42 @@ def generate_alerts(results_df, n=30):
 # Инициализация мок-алертов
 MOCK_ALERTS = generate_alerts(MOCK_RESULTS, n=30)
 
+# Добавляем поля инцидентов к алертам
+def enrich_alerts_with_incidents(alerts_df):
+    """Обогащение алертов данными об инцидентах (трекер, комментарии)."""
+    alerts_df = alerts_df.copy()
+    tracker_tasks = []
+    comments_list = []
+    for _, row in alerts_df.iterrows():
+        has_task = random.random() > 0.5
+        tracker_tasks.append({
+            "has_task": has_task,
+            "task_id": f"DQ-{random.randint(100, 999)}" if has_task else None,
+            "task_url": f"https://tracker.example.com/DQ-{random.randint(100, 999)}" if has_task else None,
+        })
+        n_comments = random.randint(0, 3) if row["status"] != "active" else 0
+        comments = []
+        for c in range(n_comments):
+            comments.append({
+                "author": random.choice(OWNERS),
+                "text": random.choice([
+                    "Проблема воспроизведена, анализирую",
+                    "Связано с обновлением ETL-пайплайна",
+                    "Исправлено, ждём следующий запуск",
+                    "Ложное срабатывание, нужно скорректировать threshold",
+                    "Передано команде DWH",
+                ]),
+                "created_at": (row["created_at"] + timedelta(minutes=random.randint(10, 300))).strftime("%d.%m.%Y %H:%M"),
+            })
+        comments_list.append(comments)
+    alerts_df["tracker_task_id"] = [t["task_id"] for t in tracker_tasks]
+    alerts_df["tracker_task_url"] = [t["task_url"] for t in tracker_tasks]
+    alerts_df["has_tracker_task"] = [t["has_task"] for t in tracker_tasks]
+    alerts_df["comments"] = comments_list
+    return alerts_df
+
+MOCK_ALERTS = enrich_alerts_with_incidents(MOCK_ALERTS)
+
 
 def get_active_alerts():
     """Получить активные алерты"""
@@ -320,3 +356,264 @@ def get_active_alerts():
 def get_alerts_count_by_status():
     """Статистика алертов по статусам"""
     return MOCK_ALERTS.groupby("status").size().to_dict()
+
+
+# ============================================================
+# История версий проверок
+# ============================================================
+def generate_check_versions(checks_df):
+    """Генерация истории версий для каждой проверки."""
+    versions = []
+    version_id = 1
+    change_types = [
+        "Создание проверки",
+        "Изменение SQL-скрипта",
+        "Изменение расписания",
+        "Изменение threshold",
+        "Изменение владельца",
+        "Изменение приоритета",
+    ]
+    for _, check in checks_df.iterrows():
+        n_versions = random.randint(1, 5)
+        base_date = check["created_at"]
+        for v in range(1, n_versions + 1):
+            change_date = base_date + timedelta(days=random.randint(0, 30) * v)
+            ct = "Создание проверки" if v == 1 else random.choice(change_types[1:])
+            versions.append({
+                "version_id": version_id,
+                "check_id": check["check_id"],
+                "version": v,
+                "change_type": ct,
+                "changed_by": check["owner"] if v == 1 else random.choice(OWNERS),
+                "changed_at": change_date,
+                "sql_script": check["sql_script"] if v == n_versions else check["sql_script"].replace(
+                    "CURRENT_DATE - 1", f"CURRENT_DATE - {random.randint(1, 7)}"
+                ),
+                "threshold": check["threshold"] if v == n_versions else random.choice([0, 0.01, 0.05]),
+                "schedule": check["schedule_main_value"],
+                "is_current": v == n_versions,
+            })
+            version_id += 1
+    return pd.DataFrame(versions)
+
+
+MOCK_CHECK_VERSIONS = generate_check_versions(MOCK_CHECKS)
+
+
+def get_check_versions(check_id: int):
+    """Получить историю версий проверки."""
+    versions = MOCK_CHECK_VERSIONS[MOCK_CHECK_VERSIONS["check_id"] == check_id].sort_values(
+        "version", ascending=False
+    )
+    return versions
+
+
+# ============================================================
+# Lineage (граф зависимостей таблиц)
+# ============================================================
+LINEAGE_GRAPH = {
+    "staging.stg_customers": {
+        "sources": ["src.crm_customers", "src.crm_contacts"],
+        "targets": ["dwh.d_customers"],
+    },
+    "staging.stg_transactions": {
+        "sources": ["src.core_transactions", "src.core_payments"],
+        "targets": ["dwh.f_transactions", "dwh.f_payments"],
+    },
+    "dwh.d_customers": {
+        "sources": ["staging.stg_customers"],
+        "targets": ["mart.customer_profile", "mart.risk_scores"],
+    },
+    "dwh.d_products": {
+        "sources": ["src.product_catalog"],
+        "targets": ["mart.daily_summary"],
+    },
+    "dwh.d_accounts": {
+        "sources": ["src.core_accounts"],
+        "targets": ["dwh.f_balances"],
+    },
+    "dwh.d_branches": {
+        "sources": ["src.org_structure"],
+        "targets": [],
+    },
+    "dwh.f_transactions": {
+        "sources": ["staging.stg_transactions"],
+        "targets": ["mart.daily_summary", "mart.risk_scores"],
+    },
+    "dwh.f_balances": {
+        "sources": ["dwh.d_accounts", "src.core_balances"],
+        "targets": ["mart.daily_summary"],
+    },
+    "dwh.f_payments": {
+        "sources": ["staging.stg_transactions"],
+        "targets": ["mart.daily_summary"],
+    },
+    "mart.customer_profile": {
+        "sources": ["dwh.d_customers", "dwh.f_transactions"],
+        "targets": [],
+    },
+    "mart.daily_summary": {
+        "sources": ["dwh.f_transactions", "dwh.f_payments", "dwh.f_balances", "dwh.d_products"],
+        "targets": [],
+    },
+    "mart.risk_scores": {
+        "sources": ["dwh.d_customers", "dwh.f_transactions"],
+        "targets": [],
+    },
+}
+
+
+def get_lineage(table_name: str):
+    """Получить lineage для таблицы в формате Cytoscape."""
+    nodes = set()
+    edges = []
+
+    info = LINEAGE_GRAPH.get(table_name, {"sources": [], "targets": []})
+
+    # Центральный узел
+    nodes.add(table_name)
+
+    # Источники
+    for src in info.get("sources", []):
+        nodes.add(src)
+        edges.append({"source": src, "target": table_name})
+        # Второй уровень
+        src_info = LINEAGE_GRAPH.get(src, {})
+        for src2 in src_info.get("sources", []):
+            nodes.add(src2)
+            edges.append({"source": src2, "target": src})
+
+    # Потребители
+    for tgt in info.get("targets", []):
+        nodes.add(tgt)
+        edges.append({"source": table_name, "target": tgt})
+        tgt_info = LINEAGE_GRAPH.get(tgt, {})
+        for tgt2 in tgt_info.get("targets", []):
+            nodes.add(tgt2)
+            edges.append({"source": tgt, "target": tgt2})
+
+    # Формат Cytoscape
+    cyto_elements = []
+    for node in nodes:
+        layer = "source"
+        if node == table_name:
+            layer = "center"
+        elif node in info.get("targets", []):
+            layer = "target"
+        elif any(node in LINEAGE_GRAPH.get(t, {}).get("targets", []) for t in info.get("targets", [])):
+            layer = "target"
+        cyto_elements.append({"data": {"id": node, "label": node.split(".")[-1], "full_name": node, "layer": layer}})
+    for edge in edges:
+        cyto_elements.append({"data": {"source": edge["source"], "target": edge["target"]}})
+
+    return cyto_elements
+
+
+# ============================================================
+# Шаблоны автоматических проверок
+# ============================================================
+MOCK_CHECK_TEMPLATES = [
+    {
+        "template_id": 1,
+        "name": "NULL-проверка полей",
+        "check_type": "Полнота данных",
+        "description": "Проверяет процент NULL-значений в указанном поле",
+        "parameters": ["schema", "table", "field"],
+        "sql_template": """SELECT 
+    COUNT(*) as total,
+    SUM(CASE WHEN {field} IS NULL THEN 1 ELSE 0 END) as null_count,
+    ROUND(100.0 * SUM(CASE WHEN {field} IS NULL THEN 1 ELSE 0 END) / COUNT(*), 2) as null_pct
+FROM {schema}.{table}
+WHERE load_date = CURRENT_DATE - 1;""",
+        "is_active": True,
+        "created_by": "system",
+    },
+    {
+        "template_id": 2,
+        "name": "Уникальность ключа",
+        "check_type": "Уникальность",
+        "description": "Проверяет уникальность бизнес-ключа в таблице",
+        "parameters": ["schema", "table", "key_field"],
+        "sql_template": """SELECT 
+    {key_field},
+    COUNT(*) as cnt
+FROM {schema}.{table}
+WHERE load_date = CURRENT_DATE - 1
+GROUP BY {key_field}
+HAVING COUNT(*) > 1;""",
+        "is_active": True,
+        "created_by": "system",
+    },
+    {
+        "template_id": 3,
+        "name": "Актуальность загрузки",
+        "check_type": "Актуальность",
+        "description": "Проверяет, что данные были загружены не позднее N дней назад",
+        "parameters": ["schema", "table", "max_days"],
+        "sql_template": """SELECT 
+    MAX(load_date) as last_load,
+    CURRENT_DATE - MAX(load_date) as days_lag
+FROM {schema}.{table}
+HAVING CURRENT_DATE - MAX(load_date) > {max_days};""",
+        "is_active": True,
+        "created_by": "system",
+    },
+    {
+        "template_id": 4,
+        "name": "Ссылочная целостность",
+        "check_type": "Согласованность",
+        "description": "Проверяет ссылочную целостность между двумя таблицами",
+        "parameters": ["schema", "table", "fk_field", "ref_schema", "ref_table", "ref_field"],
+        "sql_template": """SELECT a.{fk_field}, COUNT(*) as orphan_count
+FROM {schema}.{table} a
+LEFT JOIN {ref_schema}.{ref_table} b ON a.{fk_field} = b.{ref_field}
+WHERE b.{ref_field} IS NULL
+  AND a.load_date = CURRENT_DATE - 1
+GROUP BY a.{fk_field};""",
+        "is_active": True,
+        "created_by": "system",
+    },
+    {
+        "template_id": 5,
+        "name": "Проверка формата email",
+        "check_type": "Корректность формата",
+        "description": "Проверяет корректность email-адресов",
+        "parameters": ["schema", "table", "email_field"],
+        "sql_template": """SELECT id, {email_field}
+FROM {schema}.{table}
+WHERE {email_field} !~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{{2,}}$'
+  AND load_date = CURRENT_DATE - 1;""",
+        "is_active": True,
+        "created_by": "system",
+    },
+    {
+        "template_id": 6,
+        "name": "Неотрицательные суммы",
+        "check_type": "Бизнес-правило",
+        "description": "Проверяет, что суммы транзакций неотрицательны",
+        "parameters": ["schema", "table", "amount_field"],
+        "sql_template": """SELECT id, {amount_field}
+FROM {schema}.{table}
+WHERE {amount_field} < 0
+  AND load_date = CURRENT_DATE - 1;""",
+        "is_active": False,
+        "created_by": "ivanov_a",
+    },
+]
+
+
+# Роли пользователей
+USER_ROLES = {
+    "admin": {
+        "label": "Администратор",
+        "permissions": ["view", "create", "edit", "delete", "run", "settings", "manage_users"],
+    },
+    "editor": {
+        "label": "Редактор",
+        "permissions": ["view", "create", "edit", "run"],
+    },
+    "viewer": {
+        "label": "Наблюдатель",
+        "permissions": ["view"],
+    },
+}

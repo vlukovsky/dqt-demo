@@ -25,9 +25,21 @@ app = Dash(
 
 server = app.server
 
+# Глобальный обработчик ошибок -- показываем понятные сообщения
+app.config.suppress_callback_exceptions = True
+
 # Главный layout
 app.layout = html.Div([
     dcc.Location(id="url", refresh=False),
+    
+    # Store для текущей роли пользователя
+    dcc.Store(id="user-role-store", data="admin", storage_type="local"),
+    # Store для настроек персонализации дашборда
+    dcc.Store(id="dashboard-settings-store", data={
+        "show_trend": True, "show_type": True, "show_domain": True, "show_issues": True,
+    }, storage_type="local"),
+    # Store для сохранённых фильтров
+    dcc.Store(id="saved-filters-store", data=[], storage_type="local"),
     
     # Navbar
     create_navbar(),
@@ -38,8 +50,9 @@ app.layout = html.Div([
             # Sidebar
             dbc.Col(
                 create_sidebar(),
+                id="sidebar-col",
                 width=2,
-                className="bg-light border-end p-0",
+                className="bg-light border-end p-0 sidebar-col",
                 style={"position": "sticky", "top": "56px", "height": "calc(100vh - 56px)"}
             ),
             
@@ -47,7 +60,7 @@ app.layout = html.Div([
             dbc.Col(
                 dash.page_container,
                 width=10,
-                className="p-0",
+                className="p-0 content-col",
                 style={"minHeight": "calc(100vh - 56px)", "backgroundColor": "#f8f9fa"}
             ),
         ], className="g-0"),
@@ -123,6 +136,11 @@ app.clientside_callback(
                         <a href="/check/${params.data.check_id}" class="btn btn-sm btn-outline-primary" title="Просмотр">
                             <i class="fas fa-eye"></i>
                         </a>
+                        <button class="btn btn-sm btn-outline-warning edit-check-btn" 
+                                data-check-id="${params.data.check_id}" title="Редактировать"
+                                onclick="window.dispatchEvent(new CustomEvent('editCheck', {detail: ${JSON.stringify(params.data)}}))">
+                            <i class="fas fa-edit"></i>
+                        </button>
                         <button class="btn btn-sm btn-outline-success run-check-btn" 
                                 data-check-id="${params.data.check_id}" title="Запустить">
                             <i class="fas fa-play"></i>
@@ -143,17 +161,58 @@ app.clientside_callback(
 )
 
 
+# ============================================================
+# Callback: Обновление роли в Store
+# ============================================================
+@dash.callback(
+    dash.Output("user-role-store", "data"),
+    dash.Input("role-selector", "value"),
+    prevent_initial_call=True
+)
+def update_user_role(role):
+    return role or "admin"
+
+
+# ============================================================
+# Callback: Toggle sidebar на мобильных
+# ============================================================
+@dash.callback(
+    dash.Output("sidebar-col", "className"),
+    dash.Input("btn-sidebar-toggle", "n_clicks"),
+    dash.State("sidebar-col", "className"),
+    prevent_initial_call=True
+)
+def toggle_sidebar(n_clicks, current_class):
+    if "sidebar-hidden" in (current_class or ""):
+        return "bg-light border-end p-0 sidebar-col"
+    return "bg-light border-end p-0 sidebar-col sidebar-hidden"
+
+
+# ============================================================
+# Callback: скрытие элементов по роли (для страницы проверок)
+# ============================================================
+@dash.callback(
+    [dash.Output("btn-create-check", "style"),
+     dash.Output("btn-create-check", "disabled")],
+    dash.Input("user-role-store", "data"),
+)
+def apply_role_checks_page(role):
+    if role == "viewer":
+        return {"display": "none"}, True
+    return {}, False
+
+
 if __name__ == "__main__":
     print("\n" + "="*60)
-    print("🚀 DQT - Data Quality Tool Demo")
+    print("DQT - Data Quality Tool Demo")
     print("="*60)
-    print("\n📍 Откройте в браузере: http://localhost:8050")
-    print("\n📄 Доступные страницы:")
-    print("   • /         - Дашборд")
-    print("   • /checks   - Список проверок")
-    print("   • /results  - История результатов")
-    print("   • /check/1  - Детали проверки (пример)")
-    print("\n⚡ Режим разработки с hot reload")
+    print("\nOtkroyte v brauzere: http://localhost:8050")
+    print("\nDostupnye stranitsy:")
+    print("   /         - Dashboard")
+    print("   /checks   - Proverki")
+    print("   /results  - Istoriya")
+    print("   /check/1  - Detali proverki")
+    print("\nRezhim razrabotki s hot reload")
     print("="*60 + "\n")
     
     app.run(debug=True, host="0.0.0.0", port=8050)

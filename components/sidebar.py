@@ -11,34 +11,34 @@ def create_sidebar():
         dbc.Nav([
             dbc.NavLink([
                 html.I(className="fas fa-chart-line me-2"),
-                "Дашборд"
+                html.Span("Дашборд", className="sidebar-text")
             ], href="/", active="exact", className="sidebar-link"),
             
             dbc.NavLink([
                 html.I(className="fas fa-tasks me-2"),
-                "Проверки"
+                html.Span("Проверки", className="sidebar-text")
             ], href="/checks", active="exact", className="sidebar-link"),
             
             dbc.NavLink([
                 html.I(className="fas fa-history me-2"),
-                "История"
+                html.Span("История", className="sidebar-text")
             ], href="/results", active="exact", className="sidebar-link"),
             
             dbc.NavLink([
                 html.I(className="fas fa-bell me-2"),
-                "Алерты"
+                html.Span("Алерты", className="sidebar-text")
             ], href="/alerts", active="exact", className="sidebar-link"),
             
             html.Hr(className="my-3"),
             
             dbc.NavLink([
                 html.I(className="fas fa-cog me-2"),
-                "Настройки"
+                html.Span("Настройки", className="sidebar-text")
             ], href="/settings", active="exact", className="sidebar-link"),
             
             dbc.NavLink([
                 html.I(className="fas fa-question-circle me-2"),
-                "Справка"
+                html.Span("Справка", className="sidebar-text")
             ], href="/help", active="exact", className="sidebar-link"),
         ], vertical=True, pills=True, className="flex-column"),
         
@@ -54,5 +54,5 @@ def create_sidebar():
                 html.Span("Версия: ", className="text-muted small"),
                 html.Span("1.0.0-demo", className="small"),
             ]),
-        ], className="mt-auto pt-3"),
-    ], className="sidebar d-flex flex-column", style={"height": "calc(100vh - 56px)"})
+        ], className="mt-auto pt-3 sidebar-status"),
+    ], id="sidebar-nav", className="sidebar d-flex flex-column", style={"height": "calc(100vh - 56px)"})
